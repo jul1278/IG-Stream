@@ -20,6 +20,8 @@ The ig lightstream implementation tends to just cut out after a while, sometimes
 to get around this modify the code in IGStreamingApi.cs at around line 552 and add the line: 
 `` connectionInfo.StreamingTimeoutMillis = 15000;`` 
 
+This doesn't fix the problem but does seem to lessen it.
+
 I've also added an additional member function to IgStreamingApiClient to subscribe to the server heartbeat:
 
 ```
