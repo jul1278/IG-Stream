@@ -3,6 +3,8 @@ Streaming market prices from ig.com and saving to a csv
 
 Example command line ``IG_Stream.exe "usd jpy" "gold" "oil" "aud gbp"``
 
+https://labs.ig.com/
+
 # Setup
 
 - Clone the ig .net sample ``https://github.com/IG-Group/ig-webapi-dotnet-sample``
