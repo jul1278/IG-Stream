@@ -14,6 +14,9 @@ open dto.endpoint.search
 open ApiCredentials
 open Lightstreamer.DotNet.Client
 
+///
+/// Heartbeat listener
+///
 type HeartbeatListener() = 
     inherit TableListenerAdapterBase()
     override this.OnUpdate(itemPos : int, itemName : string, update : IUpdateInfo) = 

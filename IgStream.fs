@@ -156,14 +156,12 @@ let subscriptions (markets : seq<Market>) : seq<Subscription> =
             marketDetailsListener.Update.Add(onMarketUpdate (csvWriterAgent path))
             yield {marketDetails = market; filePath = path; listener = marketDetailsListener}}
 
-
 /// <summary>
 /// 
 /// </summary>
 [<EntryPoint>]
 let main argv = 
-    let marketPosition = igLogOn
-    
+    let marketPosition = igLogOn    
     let context = marketPosition.igClient.GetConversationContext()
 
     printPositions marketPosition.positions.positions
@@ -178,10 +176,8 @@ let main argv =
     let streamResult = streamClient.Connect(marketPosition.authentication.currentAccountId, context.cst, context.xSecurityToken, context.apiKey, marketPosition.authentication.lightstreamerEndpoint)
 
     if streamResult then
-
         let hbKey = streamClient.SubscribeToHeartbeat(HeartbeatListener())
         Console.ReadKey() |> ignore
-       
     else
         Console.WriteLine("Couldn't connect stream"); 
 
