@@ -13,7 +13,9 @@ open IGWebApiClient.Common;
 open dto.endpoint.auth.session.v2
 open dto.endpoint.positions.get.otc.v2
 open dto.endpoint.marketdetails.v2
+open dto.endpoint.browse
 open dto.endpoint.search
+open dto.endpoint.accountbalance
 open ApiCredentials
 open ErrorIgStreamClient
 open HeartbeatListener
@@ -34,8 +36,8 @@ type MarketPosition = {
 /// </summary>
 type EventDispatcher() =
  interface PropertyEventDispatcher with
-    override this.BeginInvoke(a : Action) = Console.WriteLine(a.ToString()) |> ignore
-    override this.addEventMessage(message : string) = Console.WriteLine(message) |> ignore
+    override this.BeginInvoke(a : Action) = () //Console.WriteLine(a.ToString()) |> ignore
+    override this.addEventMessage(message : string) = ()// Console.WriteLine(message) |> ignore
 
 /// <summary>
 /// pretty print out update data with arrows and stuff
@@ -111,7 +113,8 @@ let searchMarketEpics (markets : string[], igClient : IgRestApiClient) : seq<Mar
 ///
 /// Write out the update to the mailbox
 ///
-let onMarketUpdate (csvWriterAgent : MailboxProcessor<UpdateArgs<L1LsPriceData>>) (update : UpdateArgs<L1LsPriceData>) = csvWriterAgent.Post(update)
+let onMarketUpdate (csvWriterAgent : MailboxProcessor<UpdateArgs<L1LsPriceData>>) (update : UpdateArgs<L1LsPriceData>) = 
+    csvWriterAgent.Post(update)
 
 ///
 /// Write out to csv
@@ -140,13 +143,6 @@ let csvWriterAgent (filePath : string) = MailboxProcessor<UpdateArgs<L1LsPriceDa
 let filePath (epic : string) = DateTime.Now.ToString("yyyy MM dd HH mm ss ") + epic.Replace("/", "") + ".csv"
 
 /// <summary>
-/// subscribe to heartbeat
-/// </summary>
-let subscribeHeartbeat (igStreamClient : IGStreamingApiClient) = 
-    let marketDetailsListener = HeartbeatListener()
-    igStreamClient.SubscribeToMarketDetails([|"TRADE:HB.U.HEARTBEAT.IP"|], marketDetailsListener, ["HEARTBEAT"])
-
-/// <summary>
 /// subs
 /// </summary>
 let subscriptions (markets : seq<Market>) : seq<Subscription> = 
@@ -156,6 +152,45 @@ let subscriptions (markets : seq<Market>) : seq<Subscription> =
             marketDetailsListener.Update.Add(onMarketUpdate (csvWriterAgent path))
             yield {marketDetails = market; filePath = path; listener = marketDetailsListener}}
 
+///
+/// tradingMarkets
+///
+let rec tradingMarkets (igClient : IgRestApiClient) : seq<HierarchyMarket> = 
+    let topLevelNodesTask = igClient.browseRoot()
+    topLevelNodesTask.Wait()
+
+    match topLevelNodesTask.Result.Response with
+    | null -> Seq.empty
+    | _ -> filterTradingMarkets(igClient, topLevelNodesTask.Result.Response) 
+
+and tradingMarketsChildren (igClient : IgRestApiClient, parentNodeId : string) : seq<HierarchyMarket> = 
+    let topLevelNodesTask = igClient.browse(parentNodeId)
+    topLevelNodesTask.Wait()
+
+    match topLevelNodesTask.Result.Response with
+    | null -> Seq.empty
+    |  _ -> filterTradingMarkets(igClient, topLevelNodesTask.Result.Response) 
+
+and filterTradingMarkets (igClient : IgRestApiClient, marketResponse : BrowseMarketsResponse) : seq<HierarchyMarket> = 
+     
+    let tradeableMarkets = match marketResponse.markets with 
+                            | null -> Seq.empty 
+                            | _ -> marketResponse.markets |> Seq.filter(fun m -> m.marketStatus.Equals("TRADEABLE")) 
+
+    let children = match marketResponse.nodes with
+                    | null -> Seq.empty 
+                    | _ -> marketResponse.nodes |> Seq.map(fun n -> tradingMarketsChildren(igClient, n.id)) |> Seq.concat
+                    
+    Seq.append tradeableMarkets children
+///
+/// AccountDetails
+///
+let printAccountDetails (accountDetails : AccountDetails) = 
+    Console.WriteLine(String.Format("Alias: {0}", accountDetails.accountAlias))
+    Console.WriteLine(String.Format("Name: {0} ID: {1} Type: {2}", accountDetails.accountName, accountDetails.accountId, accountDetails.accountType))
+    Console.WriteLine(String.Format("Available: {0} Balance: {1} Deposit: {2} P/L: {3}", accountDetails.balance.available, accountDetails.balance.balance, accountDetails.balance.deposit, accountDetails.balance.profitLoss))
+    Console.WriteLine(String.Format("Currency: {0} Status: {1}", accountDetails.currency, accountDetails.status))
+    
 /// <summary>
 /// 
 /// </summary>
@@ -164,22 +199,34 @@ let main argv =
     let marketPosition = igLogOn    
     let context = marketPosition.igClient.GetConversationContext()
 
+    // User info
+    Console.WriteLine("User Info")
+    let accountsTask = marketPosition.igClient.accountBalance()
+    accountsTask.Wait()
+    accountsTask.Result.Response.accounts |> Seq.iter(printAccountDetails)
+
+    // Print out the users current positions
+    Console.WriteLine("Current positions...")
     printPositions marketPosition.positions.positions
 
-    let markets = searchMarketEpics(argv, marketPosition.igClient)
+    // iterate through all the markets and find ones that are trading
+    Console.WriteLine("Finding tradeable markets...")
+    tradingMarkets marketPosition.igClient |> Seq.truncate(10) |> Seq.iter(fun m -> Console.WriteLine(m.instrumentName))
 
+    // subscribe
     Console.WriteLine("Subscribing to the following markets...")
+    let markets = searchMarketEpics(argv, marketPosition.igClient)
     for market in markets do    
-        Console.WriteLine(market.instrumentName + " - " + market.marketStatus)
+        Console.WriteLine(String.Format("{0} - {1}", market.instrumentName, market.marketStatus))
 
-    let streamClient = ErrorIgStreamClient(subscriptions markets |> Seq.toList)
-    let streamResult = streamClient.Connect(marketPosition.authentication.currentAccountId, context.cst, context.xSecurityToken, context.apiKey, marketPosition.authentication.lightstreamerEndpoint)
+    let streamCredentials = {username = marketPosition.authentication.currentAccountId; 
+                                cstToken = context.cst; 
+                                xSecurityToken = context.xSecurityToken; 
+                                apiKey = context.apiKey; 
+                                lsHost = marketPosition.authentication.lightstreamerEndpoint}
 
-    if streamResult then
-        let hbKey = streamClient.SubscribeToHeartbeat(HeartbeatListener())
-        Console.ReadKey() |> ignore
-    else
-        Console.WriteLine("Couldn't connect stream"); 
+    let streamClient = IgStreamClient(streamCredentials, subscriptions markets |> Seq.toList, LSClient())
+    Console.ReadKey() |> ignore
 
     streamClient.Disconnect() |> ignore
     marketPosition.igClient.logout() |> ignore

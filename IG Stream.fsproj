@@ -25,6 +25,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>bin\Debug\IG_Stream.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
+    <StartArguments>"oil"</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -55,8 +56,8 @@
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
     <Compile Include="ApiCredentials.fs" />
-    <Compile Include="ErrorIgStreamClient.fs" />
     <Compile Include="HeartbeatListener.fs" />
+    <Compile Include="ErrorIgStreamClient.fs" />
     <Compile Include="IgStream.fs" />
     <None Include="App.config" />
     <None Include="apiCred.json">
