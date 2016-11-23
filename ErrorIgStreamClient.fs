@@ -51,7 +51,8 @@ type IgStreamClient(streamCredentials : StreamCredentials, subscriptions : list<
         override this.OnDataError(e : PushServerException) = ()
         override this.OnFailure(e : PushConnException) = ()
         override this.OnFailure(e : PushServerException) =
-             this.TryConnectAndSubscribe(streamCredentials, subscriptions) |> ignore
+            Console.WriteLine(e.Message)
+            this.TryConnectAndSubscribe(streamCredentials, subscriptions) |> ignore
 
         override this.OnEnd(e : int) = ()
         override this.OnConnectionEstablished() = ()
@@ -68,8 +69,9 @@ type IgStreamClient(streamCredentials : StreamCredentials, subscriptions : list<
         if this.Connect(streamCredentials) then
             this.SubscribeToMarketDetails(subscriptions)
             this.SubscribeToHeartbeat()
+            Console.WriteLine("Connected!")
         else
-            Console.WriteLine("Stream connected.")
+            Console.WriteLine("failed to connect.")
       
     ///
     /// Connect
@@ -89,7 +91,8 @@ type IgStreamClient(streamCredentials : StreamCredentials, subscriptions : list<
             lsClient.OpenConnection(connectionInfo, this) 
             true
         with
-        | _ as e -> false
+        | _ as e -> Console.WriteLine(e.Message)
+                    false
     
     ///
     /// SubscribeToMarketDetails

@@ -19,6 +19,7 @@ open dto.endpoint.accountbalance
 open ApiCredentials
 open ErrorIgStreamClient
 open HeartbeatListener
+open HistoricalPrices
 open Lightstreamer.DotNet.Client
 
 /// <summary>
@@ -209,6 +210,10 @@ let main argv =
     Console.WriteLine("Current positions...")
     printPositions marketPosition.positions.positions
 
+    // get market
+    // let usdMarket = searchMarketEpics([|"usd jpy"|], marketPosition.igClient) |> Seq.head
+    // historicalPricesToCsv(usdMarket, DateTime.Parse("2016-10-04"), DateTime.Parse("2016-10-06"), "MINUTE", marketPosition.igClient) 
+
     // iterate through all the markets and find ones that are trading
     Console.WriteLine("Finding tradeable markets...")
     tradingMarkets marketPosition.igClient |> Seq.truncate(10) |> Seq.iter(fun m -> Console.WriteLine(m.instrumentName))
@@ -226,6 +231,7 @@ let main argv =
                                 lsHost = marketPosition.authentication.lightstreamerEndpoint}
 
     let streamClient = IgStreamClient(streamCredentials, subscriptions markets |> Seq.toList, LSClient())
+    
     Console.ReadKey() |> ignore
 
     streamClient.Disconnect() |> ignore
